@@ -385,13 +385,27 @@ select.field { cursor: pointer; }
    drop the per-card sheen + infinite pulse so long scrolling lists stay
    smooth. Visuals stay glassy, just lighter. */
 @media (hover: none), (pointer: coarse) {
-  .glass        { backdrop-filter: blur(10px) saturate(125%); -webkit-backdrop-filter: blur(10px) saturate(125%); }
-  .glass-strong { backdrop-filter: blur(12px) saturate(130%); -webkit-backdrop-filter: blur(12px) saturate(130%); }
-  .stat-tile    { backdrop-filter: blur(10px) saturate(125%); -webkit-backdrop-filter: blur(10px) saturate(125%); }
-  .bottom-nav   { backdrop-filter: blur(14px) saturate(135%); -webkit-backdrop-filter: blur(14px) saturate(135%); }
-  /* The sheen overlay forces an extra compositing pass per card — skip it on mobile */
+  /* backdrop-filter on every scrolling card is the main cause of mobile jank.
+     Drop it on the repeated content cards and use a solid frosted fill instead
+     (looks nearly identical, costs almost nothing). Keep real blur only on the
+     bottom nav, which is a single fixed element. */
+  .glass, .glass-strong, .stat-tile, .segmented {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+  [data-theme="dark"] .glass,
+  [data-theme="dark"] .stat-tile,
+  [data-theme="dark"] .segmented { background: rgba(26,26,40,0.66); }
+  [data-theme="dark"] .glass-strong { background: rgba(26,26,40,0.82); }
+  [data-theme="light"] .glass,
+  [data-theme="light"] .stat-tile,
+  [data-theme="light"] .segmented { background: rgba(255,255,255,0.85); }
+  [data-theme="light"] .glass-strong { background: rgba(255,255,255,0.92); }
+
+  .bottom-nav { backdrop-filter: blur(14px) saturate(135%); -webkit-backdrop-filter: blur(14px) saturate(135%); }
+
+  /* The sheen overlay forces an extra compositing pass per card — skip it */
   .glass::after, .glass-strong::after { display: none; }
-  /* Continuous pulse keeps the compositor busy; make it static on mobile */
+  /* Continuous pulse keeps the compositor busy — make it static */
   .pulse-dot { animation: none; }
   /* The button shine sweep isn't needed without hover */
   .btn::before { display: none; }

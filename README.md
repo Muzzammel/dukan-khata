@@ -1,8 +1,8 @@
 # 📒 Dukan Khata v4
 
-iOS **Liquid-Glass** shop ledger. Upload register photo → Gemini AI extracts entries → saved to Supabase.
+iOS **Liquid-Glass** shop ledger — fast manual entry, receivables tracking, offline-first, saved to Supabase.
 
-**Stack:** Next.js 14 · TypeScript · Supabase · Gemini 2.0 Flash (free) · Vercel
+**Stack:** Next.js 14 · TypeScript · Supabase · Vercel
 
 ### ✨ New in v4 (redesign)
 - **iPhone-style glass UI** — frosted glass cards, blur, vivid iOS accent colors, floating glass nav.
@@ -15,13 +15,14 @@ iOS **Liquid-Glass** shop ledger. Upload register photo → Gemini AI extracts e
 - **Mark as paid & payments** — settle any entry in one tap; per-customer running balance.
 - **Search + filter** in the ledger (by invoice / customer) and an **Unpaid only** toggle.
 - **Bulk actions** — multi-select entries to delete or mark paid.
-- **Smarter AI scan** — every extracted row gets a **confidence score**; review and fix before saving (nothing is auto-written).
+- **Settings** (⚙️ in the top bar) — rename the current shop, add / delete shops, switch theme, sync now, sign out.
 - **Refresh button** + **offline-first**: a service worker caches the app shell, and entries/expenses created offline are queued and auto-synced when you reconnect.
 - **Currency = Qatari Riyal (QR)** everywhere; large numbers abbreviate (QR 1.2K / QR 3.4M) and expand to the full value on tap.
-- **Edit expenses** (parity with entries), **loading skeletons**, **empty-state nudges** that jump to Scan, **error toasts** on every API failure, **rate-limited** scan endpoint, **WCAG-tuned** light mode, and `aria-label`s on icon buttons.
+- **Edit expenses** (parity with entries), **loading skeletons**, **empty-state nudges**, **error toasts** on every API failure, **WCAG-tuned** light mode, and `aria-label`s on icon buttons.
+- **Tuned for mobile** — lighter glass on touch devices for smooth scrolling.
 - **Tests** for the invoice A/D duplication rules: `npm test` (uses Node's built-in runner, no extra installs).
 
-The data layer keeps your existing Supabase database and env vars. The only optional change: the scan flow now previews rows before saving (no migration needed).
+> The photo-upload / AI OCR scan has been **removed** in this version. The data layer keeps your existing Supabase database and env vars — no migration needed.
 
 ---
 
@@ -73,7 +74,6 @@ git init && git add . && git commit -m "init" && git push
 ---
 
 ## Features
-- 📷 **AI Scan** — Gemini reads handwritten register photos
 - 📋 **Ledger** — A (Advance) / D (Delivered) entries with auto-calculated due
 - 💸 **Expenses** — 8 categories with donut chart breakdown
 - 📊 **Dashboard** — Stats by Today / Week / Month / All Time, with live sparkline

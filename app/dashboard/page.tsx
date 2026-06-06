@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { UploadZone }     from '@/components/ui/UploadZone';
 import { EntryForm }      from '@/components/ui/EntryForm';
 import { ExpenseForm }    from '@/components/ui/ExpenseForm';
 import { DonutChart }     from '@/components/ui/DonutChart';
@@ -11,13 +10,12 @@ import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import { Sparkline }      from '@/components/ui/Sparkline';
 import { Money }          from '@/components/ui/Money';
 import { SkeletonList }   from '@/components/ui/Skeleton';
-import { ScanReview }     from '@/components/ui/ScanReview';
 import { apiFetch, queueRequest, flushOutbox, outboxCount, type ApiError } from '@/lib/offline';
 import { calcDue, applyPayment } from '@/lib/invoiceRules';
 import { money } from '@/lib/format';
-import type { Shop, Entry, Expense, ExtractedData } from '@/types';
+import type { Shop, Entry, Expense } from '@/types';
 
-type Page   = 'dashboard'|'ledger'|'customers'|'expenses'|'scan';
+type Page   = 'dashboard'|'ledger'|'customers'|'expenses'|'settings';
 type Period = 'today'|'week'|'month'|'all';
 interface ToastItem { message: string; type:'success'|'error'; id: number; }
 
@@ -64,14 +62,19 @@ export default function Dashboard() {
   const [unpaidOnly,  setUnpaidOnly]  = useState(false);
   const [selectMode,  setSelectMode]  = useState(false);
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
-  const [scan,        setScan]        = useState<{ data: ExtractedData; date: string } | null>(null);
   const [online,      setOnline]      = useState(true);
   const [queued,      setQueued]      = useState(0);
+  // settings
+  const [renameVal,   setRenameVal]   = useState('');
+  const [savingName,  setSavingName]  = useState(false);
 
   const shop     = shops[shopIdx];
   const addToast = useCallback((msg: string, type:'success'|'error') => {
     setToasts(p => [...p, { message:msg, type, id:Date.now()+Math.random() }]);
   }, []);
+
+  // keep the rename field in sync with the selected shop
+  useEffect(() => { setRenameVal(shop?.name ?? ''); }, [shop?.id, shop?.name]);
 
   // ── Boot ──────────────────────────────────────────────
   useEffect(() => {
@@ -253,6 +256,31 @@ export default function Dashboard() {
     setAddingShop(false);
   };
 
+  // ── Rename / delete shop (Settings) ───────────────────
+  const renameShop = async () => {
+    const name = renameVal.trim();
+    if (!name || !shop) return;
+    if (name === shop.name) return;
+    setSavingName(true);
+    try {
+      const s = await apiFetch<Shop>('/api/shops', { method:'PATCH', body: JSON.stringify({ id: shop.id, name }) });
+      setShops(p => p.map((x,i) => i===shopIdx ? s : x));
+      addToast('Shop name updated ✓','success');
+    } catch (err) { addToast((err as Error).message ?? 'Failed','error'); }
+    setSavingName(false);
+  };
+  const deleteShop = async () => {
+    if (!shop) return;
+    if (shops.length <= 1) { addToast('Keep at least one shop', 'error'); return; }
+    if (!confirm(`Delete "${shop.name}"? This also removes its entries and expenses. This cannot be undone.`)) return;
+    try {
+      await apiFetch('/api/shops', { method:'DELETE', body: JSON.stringify({ id: shop.id }) });
+      setShops(p => p.filter((_,i) => i!==shopIdx));
+      setShopIdx(0);
+      addToast('Shop deleted','success');
+    } catch (err) { addToast((err as Error).message ?? 'Failed','error'); }
+  };
+
   const signOut = async () => { await supabase.auth.signOut(); window.location.href='/login'; };
 
   // ── Computed ──────────────────────────────────────────
@@ -312,14 +340,14 @@ export default function Dashboard() {
     </div>
   );
 
-  const ScanNudge = ({ icon, label }: { icon:string; label:string }) => (
+  const EmptyNudge = ({ icon, label }: { icon:string; label:string }) => (
     <div className="glass glass-pad pop" style={{ textAlign:'center', padding:'44px 24px' }}>
       <div style={{ fontSize:46, marginBottom:12 }}>{icon}</div>
       <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>{label}</div>
-      <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:18 }}>Snap a photo of your register and let AI fill it in — or add manually.</div>
+      <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:18 }}>Add your first record to get started.</div>
       <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-        <button className="btn btn-primary" onClick={()=>setPage('scan')}>📷 Scan your register</button>
-        <button className="btn btn-glass" onClick={()=>{ setEditEntry(undefined); setEntryForm(true); }}>+ Add manually</button>
+        <button className="btn btn-primary" onClick={()=>{ setEditEntry(undefined); setEntryForm(true); }}>+ New Entry</button>
+        <button className="btn btn-glass" onClick={()=>{ setEditExpense(undefined); setExpenseForm(true); }}>+ Expense</button>
       </div>
     </div>
   );
@@ -330,9 +358,6 @@ export default function Dashboard() {
       {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} onClose={()=>setToasts(p=>p.filter(x=>x.id!==t.id))} />)}
       <EntryForm   open={entryForm}   onClose={()=>{setEntryForm(false);setEditEntry(undefined);}} onSave={saveEntry}   initial={editEntry} shopId={shop?.id??''} />
       <ExpenseForm open={expenseForm} onClose={()=>{setExpenseForm(false);setEditExpense(undefined);}} onSave={saveExpense} initial={editExpense} shopId={shop?.id??''} />
-      <ScanReview  open={!!scan} shopId={shop?.id??''} date={scan?.date??''} data={scan?.data??null}
-        onClose={()=>setScan(null)}
-        onSaved={({entries:ne,expenses:nx})=>{ if(ne||nx){ addToast(`Saved ${ne} entr${ne===1?'y':'ies'}, ${nx} expense${nx===1?'':'s'} ✓`,'success'); loadData(); } }} />
 
       {/* ── TOP BAR ── */}
       <header style={{
@@ -357,7 +382,6 @@ export default function Dashboard() {
           <button onClick={refresh} className="btn-circle" style={{ width:38, height:38, fontSize:15, flexShrink:0 }} aria-label="Refresh data" title="Refresh">
             <span className={refreshing?'spin':''}>⟳</span>
           </button>
-          <button onClick={()=>setPage('scan')} className="btn-circle" style={{ width:38, height:38, fontSize:15, flexShrink:0 }} aria-label="AI scan" title="AI Scan">📷</button>
 
           <div style={{ position:'relative', flexShrink:0 }}>
             <button onClick={(e)=>{e.stopPropagation();setShopMenu(p=>!p);}} className="btn-glass" style={{ gap:6, padding:'8px 12px', fontSize:13 }} aria-haspopup="listbox" aria-expanded={shopMenu} aria-label="Switch shop">
@@ -382,8 +406,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <ThemeToggle />
-          <button onClick={signOut} className="btn-circle" style={{ width:38, height:38, fontSize:14, flexShrink:0 }} aria-label="Sign out" title="Sign out">↗</button>
+          <button onClick={()=>setPage('settings')} className="btn-circle" style={{ width:38, height:38, fontSize:16, flexShrink:0 }} aria-label="Settings" title="Settings">⚙️</button>
         </div>
       </header>
 
@@ -410,7 +433,7 @@ export default function Dashboard() {
               <div style={{ position:'relative', display:'flex', justifyContent:'space-between', alignItems:'flex-end' }}>
                 <div>
                   <div style={{ fontSize:11, fontWeight:800, letterSpacing:1.1, textTransform:'uppercase', color:'var(--text-muted)', marginBottom:8 }}>Net Profit</div>
-                  <AnimatedNumber value={net} style={{ fontFamily:'var(--mono)', fontSize:34, fontWeight:700, color: net>=0?'var(--green)':'var(--red)', letterSpacing:-1.2 }} />
+                  <AnimatedNumber value={net} style={{ fontFamily:'var(--mono)', fontSize:32, fontWeight:700, color: net>=0?'var(--green)':'var(--red)', letterSpacing:-1, whiteSpace:'nowrap' }} />
                   <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:6, fontWeight:600 }}>{entries.length} entries · {expenses.length} expenses</div>
                 </div>
                 <div style={{ textAlign:'right' }}>
@@ -509,7 +532,7 @@ export default function Dashboard() {
             </div>
 
             {dataLoad ? <SkeletonList count={4} />
-            : entries.length===0 ? <ScanNudge icon="📋" label="No entries yet" />
+            : entries.length===0 ? <EmptyNudge icon="📋" label="No entries yet" />
             : filteredEntries.length===0 ? (
               <div className="glass glass-pad" style={{ textAlign:'center', padding:'36px 24px', color:'var(--text-dim)', fontSize:14, fontWeight:600 }}>
                 No matches{search?` for “${search}”`:''}{unpaidOnly?' with dues':''}.
@@ -592,7 +615,7 @@ export default function Dashboard() {
             </div>
 
             {dataLoad ? <SkeletonList count={3} />
-            : customers.length===0 ? <ScanNudge icon="🧾" label="No customers yet" />
+            : customers.length===0 ? <EmptyNudge icon="🧾" label="No customers yet" />
             : (
               <>
                 {customers.map((c,idx) => {
@@ -657,7 +680,7 @@ export default function Dashboard() {
             )}
 
             {dataLoad ? <SkeletonList count={3} />
-            : expenses.length===0 ? <ScanNudge icon="💸" label="No expenses yet" />
+            : expenses.length===0 ? <EmptyNudge icon="💸" label="No expenses yet" />
             : expenses.map((e,idx) => (
               <div key={e.id} className="glass glass-pad rise" style={{ marginBottom:10, padding:'14px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', animationDelay:`${Math.min(idx*0.04,0.4)}s` }}>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -677,44 +700,75 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ══ SCAN ═════════════════════════════════════════ */}
-        {page==='scan' && (
-          <div key="scan" className="page-enter">
-            <div style={{ marginBottom:20 }}>
-              <div className="page-title">AI Scan</div>
-              <div className="page-sub">Gemini reads your register — you confirm before saving</div>
+        {/* ══ SETTINGS ═════════════════════════════════════ */}
+        {page==='settings' && (
+          <div key="settings" className="page-enter">
+            <div style={{ marginBottom:18 }}>
+              <div className="page-title">Settings</div>
+              <div className="page-sub">Manage your shops & app</div>
             </div>
-            {shop && (
-              <div style={{ marginBottom:16 }}>
-                <UploadZone shopId={shop.id} shopName={shop.name}
-                  onReview={(data,date)=>setScan({ data, date })}
-                  onError={msg=>addToast(msg,'error')} />
-              </div>
-            )}
 
+            {/* Shop */}
             <div className="glass glass-pad rise" style={{ marginBottom:14 }}>
-              <div style={{ fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:'uppercase',color:'var(--text-muted)',marginBottom:16 }}>How It Works</div>
-              {[
-                ['📷','Photograph','Take a clear photo of your handwritten register page'],
-                ['🤖','AI Reads It','Gemini extracts every row with a confidence score'],
-                ['✅','Review & Save','Fix anything that looks off, then save the rows you want'],
-              ].map(([icon,title,sub],i)=>(
-                <div key={String(title)} style={{ display:'flex', gap:14, alignItems:'flex-start', marginBottom:16, animationDelay:`${i*0.08}s` }} className="rise">
-                  <div className="glass" style={{ width:46,height:46,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0 }}>{icon}</div>
-                  <div>
-                    <div style={{ fontSize:14,fontWeight:800,color:'var(--text)',marginBottom:3 }}>{title}</div>
-                    <div style={{ fontSize:12.5,color:'var(--text-dim)' }}>{sub}</div>
+              <div style={{ fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14 }}>Current Shop</div>
+              <label className="field-label">Shop name</label>
+              <div style={{ display:'flex', gap:10, marginBottom:6 }}>
+                <input className="field" style={{ flex:1, fontSize:15, padding:'12px 14px' }} value={renameVal} onChange={e=>setRenameVal(e.target.value)} aria-label="Shop name" placeholder="Shop name" />
+                <button className="btn btn-primary" onClick={renameShop} disabled={savingName || !renameVal.trim() || renameVal.trim()===shop?.name}>
+                  {savingName ? '…' : 'Save'}
+                </button>
+              </div>
+              {shops.length>1 && (
+                <button className="btn btn-danger" style={{ marginTop:10, width:'100%', borderRadius:'var(--radius-pill)', padding:'11px' }} onClick={deleteShop}>
+                  🗑 Delete “{shop?.name}” and its data
+                </button>
+              )}
+            </div>
+
+            {/* Add shop */}
+            <div className="glass glass-pad rise" style={{ marginBottom:14, animationDelay:'.05s' }}>
+              <div style={{ fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14 }}>Add a Shop <span style={{ fontWeight:600, textTransform:'none', letterSpacing:0 }}>({shops.length}/5)</span></div>
+              <form onSubmit={addShop} style={{ display:'flex', gap:10 }}>
+                <input className="field" style={{ flex:1,fontSize:14,padding:'12px 14px' }} placeholder="New shop name" value={newShop} onChange={e=>setNewShop(e.target.value)} aria-label="New shop name" />
+                <button type="submit" className="btn btn-primary" disabled={addingShop||!newShop.trim()||shops.length>=5}>{addingShop?'…':'+ Add'}</button>
+              </form>
+            </div>
+
+            {/* Appearance */}
+            <div className="glass glass-pad rise" style={{ marginBottom:14, animationDelay:'.1s', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div>
+                <div style={{ fontSize:14, fontWeight:800, color:'var(--text)' }}>Appearance</div>
+                <div style={{ fontSize:12.5, color:'var(--text-dim)' }}>Switch light / dark theme</div>
+              </div>
+              <ThemeToggle />
+            </div>
+
+            {/* Data & sync */}
+            <div className="glass glass-pad rise" style={{ marginBottom:14, animationDelay:'.15s' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:'var(--text)' }}>Data &amp; Sync</div>
+                  <div style={{ fontSize:12.5, color:'var(--text-dim)' }}>
+                    {online ? 'Online' : 'Offline'}{queued>0 ? ` · ${queued} change${queued>1?'s':''} waiting` : ' · all synced'}
                   </div>
                 </div>
-              ))}
+                <div style={{ width:10, height:10, borderRadius:'50%', background: online?'var(--green)':'var(--amber)', boxShadow:`0 0 8px ${online?'var(--green)':'var(--amber)'}` }} />
+              </div>
+              <button className="btn btn-glass" style={{ width:'100%' }} onClick={refresh} disabled={refreshing}>
+                <span className={refreshing?'spin':''}>⟳</span>&nbsp;{refreshing?'Syncing…':'Sync now'}
+              </button>
             </div>
 
-            <div className="glass glass-pad rise" style={{ animationDelay:'.1s' }}>
-              <div style={{ fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14 }}>Add Another Shop</div>
-              <form onSubmit={addShop} style={{ display:'flex', gap:10 }}>
-                <input className="field" style={{ flex:1,fontSize:14,padding:'12px 14px' }} placeholder="Shop name" value={newShop} onChange={e=>setNewShop(e.target.value)} aria-label="New shop name" />
-                <button type="submit" className="btn btn-primary" disabled={addingShop||!newShop.trim()}>{addingShop?'…':'+ Add'}</button>
-              </form>
+            {/* Account */}
+            <div className="glass glass-pad rise" style={{ marginBottom:14, animationDelay:'.2s' }}>
+              <div style={{ fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:'uppercase',color:'var(--text-muted)',marginBottom:12 }}>Account</div>
+              <button className="btn btn-danger" style={{ width:'100%', borderRadius:'var(--radius-pill)', padding:'12px' }} onClick={signOut}>↗ Sign out</button>
+            </div>
+
+            {/* About */}
+            <div className="glass glass-pad rise" style={{ animationDelay:'.25s', textAlign:'center' }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>📒 Dukan Khata</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>Version 4 · Currency: Qatari Riyal (QR)</div>
             </div>
           </div>
         )}
