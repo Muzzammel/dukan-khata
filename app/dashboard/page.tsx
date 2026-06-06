@@ -336,51 +336,55 @@ export default function Dashboard() {
 
       {/* ── TOP BAR ── */}
       <header style={{
-        padding:'12px 16px', display:'flex', alignItems:'center', gap:8,
-        background:'var(--nav-bg)', backdropFilter:'blur(24px) saturate(180%)',
-        WebkitBackdropFilter:'blur(24px) saturate(180%)', position:'sticky', top:0, zIndex:100,
+        padding:'10px 12px', display:'flex', alignItems:'center', gap:8, flexWrap:'nowrap',
+        background:'var(--nav-bg)', backdropFilter:'blur(16px) saturate(140%)',
+        WebkitBackdropFilter:'blur(16px) saturate(140%)', position:'sticky', top:0, zIndex:100,
         borderBottom:'1px solid var(--glass-border)',
       }}>
-        <div style={{ flex:1, display:'flex', alignItems:'center', gap:11, minWidth:0 }}>
-          <div style={{ width:38, height:38, borderRadius:13, background:'var(--accent-grad)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, boxShadow:'0 6px 18px var(--accent-glow)', flexShrink:0 }}>📒</div>
-          <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:16, fontWeight:800, letterSpacing:-.4, color:'var(--text)' }}>Dukan Khata</div>
-            <div style={{ fontSize:10.5, color:'var(--text-muted)', fontWeight:600 }}>
-              {online ? 'Smart Ledger' : <span style={{ color:'var(--amber)' }}>● Offline{queued>0?` · ${queued} queued`:''}</span>}
+        {/* Logo — shrinks/truncates, never wraps or overlaps */}
+        <div style={{ flex:'1 1 auto', display:'flex', alignItems:'center', gap:9, minWidth:0, overflow:'hidden' }}>
+          <div style={{ width:34, height:34, borderRadius:11, background:'var(--accent-grad)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, boxShadow:'0 6px 18px var(--accent-glow)', flexShrink:0 }}>📒</div>
+          <div style={{ minWidth:0, overflow:'hidden' }}>
+            <div style={{ fontSize:15, fontWeight:800, letterSpacing:-.3, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Dukan Khata</div>
+            <div style={{ fontSize:10.5, color:'var(--text-muted)', fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+              {online ? 'Smart Ledger' : <span style={{ color:'var(--amber)' }}>● Offline{queued>0?` · ${queued}`:''}</span>}
             </div>
           </div>
         </div>
 
-        <button onClick={refresh} className="btn-circle" style={{ width:40, height:40, fontSize:16 }} aria-label="Refresh data" title="Refresh">
-          <span className={refreshing?'spin':''}>⟳</span>
-        </button>
-        <button onClick={()=>setPage('scan')} className="btn-circle" style={{ width:40, height:40, fontSize:16 }} aria-label="AI scan" title="AI Scan">📷</button>
-
-        <div style={{ position:'relative' }}>
-          <button onClick={(e)=>{e.stopPropagation();setShopMenu(p=>!p);}} className="btn-glass btn-sm" style={{ gap:7 }} aria-haspopup="listbox" aria-expanded={shopMenu} aria-label="Switch shop">
-            <div className="pulse-dot" style={{ width:8, height:8, borderRadius:'50%', background:'var(--accent)' }} />
-            <span style={{ maxWidth:80, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{shop?.name??'Shop'}</span>
-            <span style={{ fontSize:9, color:'var(--text-muted)' }}>▼</span>
+        {/* Action cluster — fixed size, never shrinks, sits to the right */}
+        <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+          <button onClick={refresh} className="btn-circle" style={{ width:38, height:38, fontSize:15, flexShrink:0 }} aria-label="Refresh data" title="Refresh">
+            <span className={refreshing?'spin':''}>⟳</span>
           </button>
-          {shopMenu && (
-            <div className="glass-strong" role="listbox" style={{ position:'absolute', right:0, top:'calc(100% + 8px)', borderRadius:16, overflow:'hidden', minWidth:170, zIndex:300, animation:'pop .3s var(--ease-spring)' }}>
-              {shops.map((s,i) => (
-                <div key={s.id} role="option" aria-selected={shopIdx===i} onClick={()=>{setShopIdx(i);setShopMenu(false);}} style={{
-                  padding:'13px 16px', cursor:'pointer', fontSize:13.5, fontWeight:700,
-                  background: shopIdx===i ? 'var(--accent-glow)' : 'transparent',
-                  color: shopIdx===i ? 'var(--accent)' : 'var(--text)',
-                  display:'flex', alignItems:'center', gap:9, borderBottom:'1px solid var(--glass-border)',
-                }}>
-                  <div style={{ width:8,height:8,borderRadius:'50%', background:shopIdx===i?'var(--accent)':'var(--text-muted)' }}/>
-                  {s.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <button onClick={()=>setPage('scan')} className="btn-circle" style={{ width:38, height:38, fontSize:15, flexShrink:0 }} aria-label="AI scan" title="AI Scan">📷</button>
 
-        <ThemeToggle />
-        <button onClick={signOut} className="btn-circle" style={{ width:40, height:40, fontSize:15 }} aria-label="Sign out" title="Sign out">↗</button>
+          <div style={{ position:'relative', flexShrink:0 }}>
+            <button onClick={(e)=>{e.stopPropagation();setShopMenu(p=>!p);}} className="btn-glass" style={{ gap:6, padding:'8px 12px', fontSize:13 }} aria-haspopup="listbox" aria-expanded={shopMenu} aria-label="Switch shop">
+              <div className="pulse-dot" style={{ width:7, height:7, borderRadius:'50%', background:'var(--accent)', flexShrink:0 }} />
+              <span style={{ maxWidth:64, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{shop?.name??'Shop'}</span>
+              <span style={{ fontSize:9, color:'var(--text-muted)' }}>▼</span>
+            </button>
+            {shopMenu && (
+              <div className="glass-strong" role="listbox" style={{ position:'absolute', right:0, top:'calc(100% + 8px)', borderRadius:16, overflow:'hidden', minWidth:170, zIndex:300, animation:'pop .3s var(--ease-spring)' }}>
+                {shops.map((s,i) => (
+                  <div key={s.id} role="option" aria-selected={shopIdx===i} onClick={()=>{setShopIdx(i);setShopMenu(false);}} style={{
+                    padding:'13px 16px', cursor:'pointer', fontSize:13.5, fontWeight:700,
+                    background: shopIdx===i ? 'var(--accent-glow)' : 'transparent',
+                    color: shopIdx===i ? 'var(--accent)' : 'var(--text)',
+                    display:'flex', alignItems:'center', gap:9, borderBottom:'1px solid var(--glass-border)',
+                  }}>
+                    <div style={{ width:8,height:8,borderRadius:'50%', background:shopIdx===i?'var(--accent)':'var(--text-muted)' }}/>
+                    {s.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <ThemeToggle />
+          <button onClick={signOut} className="btn-circle" style={{ width:38, height:38, fontSize:14, flexShrink:0 }} aria-label="Sign out" title="Sign out">↗</button>
+        </div>
       </header>
 
       <div style={{ padding:'18px 16px', maxWidth:680, margin:'0 auto' }} onClick={()=>setShopMenu(false)}>
